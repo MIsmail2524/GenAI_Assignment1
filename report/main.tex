@@ -11,6 +11,8 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage[hidelinks]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
 
 \graphicspath{{figures/}}
 \extrafloats{150}
@@ -39,7 +41,7 @@ i232524@isb.nu.edu}}
 \maketitle
 
 \begin{abstract}
-We design, train, evaluate and deploy four related generative systems. Tasks~1--3 restore Oxford-IIIT Pet images ($128{\times}128$) affected by salt-and-pepper noise, Gaussian blur or rectangular occlusion, generated at runtime with deterministic validation/test manifests. Task~1 is a universal convolutional denoising autoencoder with a spatial $128{\times}8{\times}8$ bottleneck and an AirNet-style contrastive degradation encoder that FiLM-conditions the network without ever receiving the corruption label. Task~2 trains a four-class corruption classifier on exactly class-balanced batches (test accuracy 98.27\%, macro-F1 0.973) that hard-routes inputs to three independently trained specialist autoencoders, with an identity bypass for clean images. Task~3 converts this system into a differentiable soft mixture of experts initialised from Task~2 and jointly fine-tuned with reconstruction, SSIM, classification and load-balancing losses; it improves test SSIM over hard routing on every corrupted condition (up to $+0.106$ on low-severity occlusion; pooled SSIM 0.764). Task~4 is a style-conditioned conditional GAN (U-Net generator with a learned style embedding injected through FiLM, style-conditioned PatchGAN discriminator) trained on FS2K, reaching test SSIM 0.444 overall and 0.620 on Style~3. Every model is tuned with Optuna, tracked with MLflow, exported to ONNX (maximum PyTorch--ONNX deviation $\le 2.6{\times}10^{-5}$) and served through a Google-Stitch-designed React/Tailwind front end and a FastAPI back end orchestrated with Docker Compose.
+We design, train, evaluate and deploy four related generative systems. Tasks~1--3 restore Oxford-IIIT Pet images ($128{\times}128$) affected by salt-and-pepper noise, Gaussian blur or rectangular occlusion, generated at runtime with deterministic validation/test manifests. Task~1 is a universal convolutional denoising autoencoder with a spatial $128{\times}8{\times}8$ bottleneck and an AirNet-style contrastive degradation encoder that FiLM-conditions the network without ever receiving the corruption label; its 60-epoch run reaches validation SSIM 0.78, although the checkpoint available for testing is an early one (test SSIM 0.40). Task~2 trains a four-class corruption classifier on exactly class-balanced batches (test accuracy 98.27\%, macro-F1 0.973) that hard-routes inputs to three independently trained specialist autoencoders, with an identity bypass for clean images. Task~3 converts this system into a differentiable soft mixture of experts initialised from Task~2 and jointly fine-tuned with reconstruction, SSIM, classification and load-balancing losses; it improves test SSIM over hard routing on every corrupted condition (up to $+0.106$ on low-severity occlusion; pooled SSIM 0.764). Task~4 is a style-conditioned conditional GAN (U-Net generator with a learned style embedding injected through FiLM, style-conditioned PatchGAN discriminator) trained on FS2K, reaching test SSIM 0.444 overall and 0.620 on Style~3. Every model is tuned with Optuna, tracked with MLflow, exported to ONNX (maximum PyTorch--ONNX deviation $\le 2.6{\times}10^{-5}$) and served through a Google-Stitch-designed React/Tailwind front end and a FastAPI back end orchestrated with Docker Compose.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -111,6 +113,21 @@ The validation manifest (one corruption per image, seed $1000{+}i$) and the test
 
 \subsection{FS2K (Task 4)}
 FS2K~\cite{fan2022fs2k} provides 2{,}104 photo--sketch pairs in three sketch styles with official train (1{,}058) and test (1{,}046) definitions. We hold out 15\% of the official training portion, stratified by style with seed~42 (\texttt{train\_test\_split}). This gives 899 training pairs (303/298/298 per style) and 159 validation pairs (54/52/53). The test set (619/381/46) is used only for final evaluation. The splits are disjoint. Pairs are resized to $128{\times}128$ and scaled to $[-1,1]$. Training augmentation draws one horizontal flip, one rotation angle in $[-8^\circ,8^\circ]$ and one resized-crop window per sample, and applies them identically to the photo and its sketch (Fig.~\ref{fig:t4data}).
+
+%=====================================================================
+\section{Experimental Setup}\label{sec:setup}
+\textbf{Hardware and software.} All models were trained on Google Colab with an NVIDIA T4 GPU, using Python 3, PyTorch, \texttt{pytorch-msssim}, Optuna (TPE sampler, seed 42), MLflow and ONNX/ONNX Runtime. Checkpoints, manifests, Optuna studies and the MLflow store are kept on Google Drive, and every training loop resumes from its last checkpoint. Global seeds (Python, NumPy, PyTorch) are fixed to 42.
+
+\textbf{Protocol.} Hyperparameters are chosen only on validation data. Optuna trials use short budgets, after which the selected configuration is retrained with early stopping on the validation objective. The best-validation checkpoint is reloaded and evaluated once on the untouched official test set: the 36{,}690-entry test manifest for Tasks 1--3, and the 1{,}046 official FS2K test pairs for Task 4.
+
+\textbf{Metrics.}
+\begin{itemize}
+\item Restoration: per-image L1, SSIM (Gaussian window, data range 1) and PSNR $=10\log_{10}(1/\mathrm{MSE})$, averaged by corruption type and severity. PSNR is capped at 80\,dB when an output equals its target exactly.
+\item Classifier: accuracy, macro and per-class precision/recall/F1, and a row-normalised confusion matrix.
+\item Soft MoE: mean routing weight per type and severity.
+\item Task 4: L1 (in $[-1,1]$ units), SSIM and PSNR on $[0,1]$ images, per style. We also measure style controllability and output diversity (mode-collapse ratio).
+\item ONNX: maximum and mean absolute difference from PyTorch on real test images.
+\end{itemize}
 
 %=====================================================================
 \section{Task 1: Universal Multi-Corruption Denoising Autoencoder}\label{sec:t1}
@@ -289,7 +306,7 @@ The three specialists share one architecture: the Task 1 backbone without degrad
 \begin{equation}
 \hat x=\begin{cases}\tilde x & r=\text{clean (identity bypass)}\\ A_{salt}(\tilde x) & r=\text{salt}\\ A_{blur}(\tilde x) & r=\text{blur}\\ A_{occ}(\tilde x) & r=\text{occlusion}\end{cases}
 \end{equation}
-Clean predictions skip all experts (Fig.~\ref{fig:t2arch}). In \emph{oracle} mode the manifest label selects the expert; in \emph{predicted} mode the classifier does. Table~\ref{tab:t2route} lists both by corruption and severity. Oracle and predicted routing are identical on every salt-and-pepper, medium/high-blur and most occlusion inputs. Predicted routing is even \emph{better} on low blur (SSIM 0.755 vs 0.721) and low occlusion (0.696 vs 0.688). In these cases the misrouted inputs are barely corrupted, so the identity bypass keeps them closer to the target than the specialist reconstruction does. On clean inputs predicted routing loses 0.0023 SSIM, because 45 clean images (1.2\%) were sent to an expert. Pooled over all 36{,}690 inputs, SSIM is 0.718 (oracle) and 0.723 (predicted).
+Clean predictions skip all experts (Fig.~\ref{fig:t2arch}). In \emph{oracle} mode the manifest label selects the expert; in \emph{predicted} mode the classifier does. Table~\ref{tab:t2route} lists both by corruption and severity. The oracle columns are each specialist's own performance on its corruption at each severity level. Oracle and predicted routing are identical on every salt-and-pepper, medium/high-blur and most occlusion inputs. Predicted routing is even \emph{better} on low blur (SSIM 0.755 vs 0.721) and low occlusion (0.696 vs 0.688). In these cases the misrouted inputs are barely corrupted, so the identity bypass keeps them closer to the target than the specialist reconstruction does. On clean inputs predicted routing loses 0.0023 SSIM, because 45 clean images (1.2\%) were sent to an expert. Pooled over all 36{,}690 inputs, SSIM is 0.718 (oracle) and 0.723 (predicted).
 
 \begin{figure}[!t]
 \centering
@@ -436,7 +453,7 @@ Clean & -- & 0.406 & 1.000 & 0.998 & 0.997 & 79.4$^\ast$ & 57.3\\
 \subsection{Gating behaviour}
 Table~\ref{tab:t3w} gives the mean weights for every true type and severity, and Fig.~\ref{fig:t3heat} the routing heatmap. Every row peaks on its matching branch: clean 0.954, salt-and-pepper 0.931, blur 0.755 and occlusion 0.804. Routing becomes sharper as severity increases (own-expert weight on blur: 0.68, 0.79, 0.79; on occlusion: 0.72, 0.83, 0.87), while mild corruptions keep a substantial identity weight (0.32 on low blur, 0.26 on low occlusion). This smooth, severity-dependent hedging is exactly what hard routing cannot express, and it explains the gains in Table~\ref{tab:t3res}. In the low-entropy examples (Fig.~\ref{fig:t3dom}a) a single branch takes $>0.99$ of the weight. In the high-entropy examples (Fig.~\ref{fig:t3dom}b) mild blur and occlusion inputs split weight between the identity, blur and occlusion branches (e.g.\ 0.41/0.31/0.28).
 
-\emph{Inactive or dominating experts.} The dataset-wide mean weights are 0.243 (identity), 0.281 (salt-and-pepper), 0.233 (blur) and 0.243 (occlusion), all close to $\tfrac14$, so no expert is inactive. No expert dominates unrelated inputs: the salt-and-pepper expert receives $<0.003$ on any other type, and the blur and occlusion experts $<0.04$ on other corrupted types. The only notable cross-talk is the identity branch on mild blur and occlusion, which is intended behaviour.
+\emph{Inactive or dominating experts.} The dataset-wide mean weights are 0.243 (identity), 0.281 (salt-and-pepper), 0.233 (blur) and 0.243 (occlusion), all close to $\tfrac14$, so no expert is inactive. No expert dominates unrelated inputs: the salt-and-pepper expert receives at most 0.010 on any other type, the blur expert at most 0.035 (on clean images) and the occlusion expert at most 0.009. The only notable cross-talk is the identity branch on mild blur and occlusion, which is intended behaviour.
 
 \begin{table}[!t]
 \caption{Mean routing weights by true corruption type and severity (test)}
@@ -636,8 +653,28 @@ The FastAPI back end exposes \texttt{GET /health} and \texttt{POST /universal-re
 \end{itemize}
 The universal and soft-MoE endpoints always run their full model; the identity branch, not an external classifier, handles clean inputs in Task~3.
 
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[font=\scriptsize, node distance=3mm and 4mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=7mm, fill=#1},
+  box/.default=white, >={Stealth[length=1.6mm]}]
+\node[box=blue!8] (ui) {React + Tailwind UI\\(4 workspaces, webcam,\\download, run log)};
+\node[box=orange!10, right=of ui] (api) {FastAPI\\validation $\rightarrow$ preprocess\\$\rightarrow$ (corrupt) $\rightarrow$ infer};
+\node[box=green!8, right=of api] (ort) {ONNX Runtime\\(CPU)};
+\node[box=gray!8, below=of api, text width=4.9cm] (ep) {\texttt{/health}, \texttt{/universal-restoration}, \texttt{/hard-routing}, \texttt{/soft-moe}, \texttt{/face-to-sketch}};
+\node[box=green!4, below=of ort, text width=2.0cm] (m) {\texttt{models/} (Git LFS): task1, classifier, 3 specialists, task3, task4};
+\draw[->] (ui) -- node[above]{HTTP} (api);
+\draw[->] (api) -- (ort);
+\draw[->] (api) -- (ep);
+\draw[->] (m) -- (ort);
+\node[draw, dashed, rounded corners, inner sep=2.5mm, fit=(ui)(api)(ort)(ep)(m), label={[font=\scriptsize]above:Docker Compose (frontend container :5173, backend container :8000)}] {};
+\end{tikzpicture}
+\caption{Application architecture: browser front end, FastAPI back end and ONNX Runtime models, started with one Docker Compose command.}
+\label{fig:apparch}
+\end{figure}
+
 \subsection{Containerised deployment}
-The back end (\texttt{python:3.11-slim}, ONNX Runtime) and the front end (\texttt{node:20}, Vite) each have a Dockerfile. \texttt{docker compose up --build} starts both, with the models mounted read-only from \texttt{models/} (stored with Git LFS). The application is then available at \texttt{http://localhost:5173}, with the API documentation at \texttt{http://localhost:8000/docs}. No IDE or manual Python step is needed. CPU inference times observed in the application were 212\,ms (Task 1), 194\,ms (Task 2), 969\,ms (Task 3, four networks) and 54--252\,ms (Task 4). The first request includes model loading.
+Fig.~\ref{fig:apparch} shows the deployed architecture. The back end (\texttt{python:3.11-slim}, ONNX Runtime) and the front end (\texttt{node:20}, Vite) each have a Dockerfile. \texttt{docker compose up --build} starts both, with the models mounted read-only from \texttt{models/} (stored with Git LFS). The application is then available at \texttt{http://localhost:5173}, with the API documentation at \texttt{http://localhost:8000/docs}. No IDE or manual Python step is needed. CPU inference times observed in the application were 212\,ms (Task 1), 194\,ms (Task 2), 969\,ms (Task 3, four networks) and 54--252\,ms (Task 4). The first request includes model loading.
 
 \subsection{Experiment tracking}
 Each notebook logs to one MLflow tracking store, kept on Google Drive (SQLite plus artifact directory), in four experiments (\texttt{Task1-Universal-AE}, \texttt{Task2-Hard-Routing}, \texttt{Task3-Soft-MoE}, \texttt{Task4-Face2Sketch-cGAN}). Each run records:
@@ -665,7 +702,7 @@ The UI is served from Colab and shown in the demonstration video. The Optuna stu
 \subfloat[Style 1.]{\includegraphics[width=0.32\textwidth]{app_sketch_style1.png}}\hfill
 \subfloat[Style 3.]{\includegraphics[width=0.32\textwidth]{app_sketch_style3.png}}\hfill
 \subfloat[Soft-MoE preview from the notebook.]{\includegraphics[width=0.18\textwidth]{t3_app_preview.png}}
-\caption{Application screenshots of the four workspaces on a previously unseen photograph (input, corruption controls, outputs, routing/expert information, inference time and download).}
+\caption{Application screenshots of the four workspaces on a previously unseen photograph (input, corruption controls, outputs, predicted corruption/selected expert or dominant expert, inference time and download). The hard-routed and soft-MoE workspaces also render the four class probabilities and the four routing weights as bars below the result card; the same information is shown for test images in Fig.~\ref{fig:t2pipe} and panel~(g).}
 \label{fig:app}
 \end{figure*}
 
