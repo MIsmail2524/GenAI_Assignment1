@@ -1,0 +1,38 @@
+{
+  "data": {
+    "dataset": "Oxford-IIIT Pet",
+    "img_size": 128,
+    "split": "80/20 of official trainval, seed 42",
+    "val_manifest_seed": 1000,
+    "test_manifest_seed": 2000
+  },
+  "optuna": {
+    "trials_total": 38,
+    "complete": 25,
+    "pruned": 12,
+    "failed": 1,
+    "epochs_per_trial": 4,
+    "sampler": "TPE(seed=42)",
+    "pruner": "MedianPruner(n_warmup_steps=1)",
+    "best_value": 0.11566316951876102
+  },
+  "best_params": {
+    "lr": 0.0002692655251486473,
+    "batch_size": 32,
+    "bottleneck_channels": 128,
+    "base_channels": 64,
+    "n_res_blocks": 1,
+    "dropout": 0.019515477895583853,
+    "alpha": 0.926998491764,
+    "deg_embed_dim": 64,
+    "lambda_cl": 0.027388594841887794
+  },
+  "training": {
+    "optimizer": "Adam",
+    "scheduler": "ReduceLROnPlateau(factor=0.5, patience=4)",
+    "max_epochs": 60,
+    "early_stopping_patience": 10,
+    "contrastive_crop": 64,
+    "nt_xent_temperature": 0.2
+  }
+}

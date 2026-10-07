@@ -1,0 +1,62 @@
+{
+  "classifier": {
+    "optuna": {
+      "trials_total": 20,
+      "complete": 13,
+      "pruned": 7,
+      "epochs_per_trial": 3
+    },
+    "best_params": {
+      "lr": 0.0006383472114291106,
+      "batch_size": 32,
+      "n_layers": 5,
+      "base_width": 16,
+      "dropout": 0.38098726747878453,
+      "weight_decay": 0.00010156970317366608
+    },
+    "training": {
+      "optimizer": "AdamW",
+      "max_epochs": 30,
+      "patience": 8,
+      "batches": "exactly class-balanced (idx % 4)"
+    }
+  },
+  "specialists": {
+    "optuna": {
+      "trials_total": 20,
+      "complete": 15,
+      "pruned": 5,
+      "epochs_per_trial": 4,
+      "proxy_corruption": "gaussian_blur"
+    },
+    "best_params": {
+      "lr": 0.00010299673377649191,
+      "batch_size": 64,
+      "bottleneck_channels": 128,
+      "base_channels": 24,
+      "n_res_blocks": 3,
+      "dropout": 0.16997817535270465,
+      "alpha": 0.9473885841476932
+    },
+    "aux_losses": {
+      "salt_pepper": {
+        "edge": 0.0,
+        "perceptual": 0.0
+      },
+      "gaussian_blur": {
+        "edge": 0.15,
+        "perceptual": 0.0
+      },
+      "occlusion": {
+        "edge": 0.0,
+        "perceptual": 0.1
+      }
+    },
+    "training": {
+      "optimizer": "Adam",
+      "scheduler": "ReduceLROnPlateau(factor=0.5, patience=5)",
+      "max_epochs": 200,
+      "patience": 25
+    }
+  }
+}

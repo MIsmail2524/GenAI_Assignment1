@@ -1,0 +1,31 @@
+{
+  "data": {
+    "dataset": "FS2K",
+    "img_size": 128,
+    "val_fraction": 0.15,
+    "stratify": "style",
+    "seed": 42
+  },
+  "optuna": {
+    "trials_total": 15,
+    "complete": 10,
+    "pruned": 5,
+    "epochs_per_trial": 5
+  },
+  "best_params": {
+    "g_lr": 0.0004543170587308376,
+    "d_lr": 6.825207423582819e-05,
+    "batch_size": 8,
+    "base_channels": 48,
+    "dropout": 0.19489603253436116,
+    "style_embed_dim": 16,
+    "lambda_l1": 137.34678714395125
+  },
+  "training": {
+    "g_l1_pretrain_epochs": 10,
+    "max_epochs": 150,
+    "patience": 25,
+    "optimizer": "Adam(betas=(0.5, 0.999))",
+    "adv_loss": "BCEWithLogits"
+  }
+}

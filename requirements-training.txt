@@ -1,0 +1,17 @@
+# Training / evaluation environment (Google Colab, GPU). The app has its own backend/requirements.txt.
+torch>=2.3
+torchvision>=0.18
+numpy
+opencv-python-headless
+pillow
+pandas
+matplotlib
+scikit-learn
+scipy
+tqdm
+pytorch-msssim
+optuna>=3.6
+mlflow>=2.14
+onnx>=1.16
+onnxruntime>=1.18
+gdown

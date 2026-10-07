@@ -1,0 +1,32 @@
+{
+  "warmup": {
+    "epochs": 10,
+    "lr": 0.001,
+    "tau": 1.0,
+    "alpha": 0.8,
+    "lambda_c": 0.1,
+    "lambda_b": 0.01,
+    "batch_size": 64,
+    "trainable": "gate only"
+  },
+  "optuna": {
+    "trials_total": 15,
+    "complete": 7,
+    "pruned": 8,
+    "epochs_per_trial": 3,
+    "collapse_pruning": "any branch mean weight < 0.02 or > 0.9"
+  },
+  "best_params": {
+    "lr": 1.613816705571385e-05,
+    "tau": 1.6917385416285122,
+    "alpha": 0.9232199815638474,
+    "lambda_c": 0.03986147195179397,
+    "lambda_b": 0.0012596122772586546
+  },
+  "joint_training": {
+    "max_epochs": 60,
+    "patience": 15,
+    "batch_size": 64,
+    "init": "gate = Task 2 classifier, experts = Task 2 specialists"
+  }
+}
