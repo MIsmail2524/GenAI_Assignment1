@@ -1,8 +1,8 @@
 import base64
 import time
 from fastapi import APIRouter, File, Form, UploadFile
-from ..inference import (classifier, universal_ae, preprocess,
-                         run_image_model, restored_output, softmax,
+from ..inference import (read_validated_upload, universal_ae, preprocess,
+                         run_image_model, restored_output,
                          image_bytes_to_png, tensor_to_png)
 from ..corruptions import apply_corruption_by_name
 from ..schemas import UniversalResponse
@@ -18,7 +18,7 @@ async def universal_restoration(
 ):
     """Upload any image. Optionally apply a corruption first (for demos),
     then run the universal autoencoder on the result."""
-    image_bytes = await file.read()
+    image_bytes = await read_validated_upload(file)
     x = preprocess(image_bytes)
 
     # If the user asked for a corruption, apply it before restoring
@@ -28,17 +28,12 @@ async def universal_restoration(
                      if force_corruption in ('none', 'clean')
                      else tensor_to_png(x))
 
+    # The universal model is never told which corruption is present, so every
+    # input (including clean ones) goes through the Task 1 autoencoder.
     t0 = time.perf_counter()
-    clean_bypass = force_corruption == 'clean'
-    if force_corruption == 'none':
-        logits = run_image_model(classifier(), x)['logits']
-        clean_bypass = int(softmax(logits, axis=1)[0].argmax()) == 0
-
-    if clean_bypass:
-        recon_png = image_bytes_to_png(image_bytes)
-    else:
-        out = run_image_model(universal_ae(), x)
-        recon_png = tensor_to_png(restored_output(out))
+    clean_bypass = False
+    out = run_image_model(universal_ae(), x)
+    recon_png = tensor_to_png(restored_output(out))
     dt_ms = (time.perf_counter() - t0) * 1000
 
     return UniversalResponse(

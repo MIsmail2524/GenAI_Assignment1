@@ -60,6 +60,28 @@ def generator():
 
 # ---------- Image helpers ----------
 
+ALLOWED_TYPES = {'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/bmp'}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+async def read_validated_upload(upload):
+    """Reject non-image, empty, oversized or undecodable uploads with HTTP 400/413."""
+    from fastapi import HTTPException
+    if upload.content_type and upload.content_type.lower() not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400,
+                            detail=f'Unsupported file type {upload.content_type}; use PNG, JPEG, WEBP or BMP.')
+    data = await upload.read()
+    if not data:
+        raise HTTPException(status_code=400, detail='Empty file.')
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail='File larger than 10 MB.')
+    try:
+        Image.open(io.BytesIO(data)).verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail='File is not a valid image.')
+    return data
+
+
 def preprocess(image_bytes, size=IMG_SIZE):
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
     img = img.resize((size, size), Image.BILINEAR)

@@ -1,9 +1,8 @@
 import base64
 import time
 from fastapi import APIRouter, File, Form, UploadFile
-from ..inference import (classifier, soft_moe, preprocess, run_image_model,
-                         restored_output, image_bytes_to_png, tensor_to_png,
-                         softmax)
+from ..inference import (read_validated_upload, soft_moe, preprocess, run_image_model,
+                         restored_output, image_bytes_to_png, tensor_to_png)
 from ..corruptions import apply_corruption_by_name
 from ..schemas import SoftMoEResponse
 
@@ -18,7 +17,7 @@ async def soft_moe_inference(
     force_corruption: str = Form('none'),
     severity: str = Form('medium'),
 ):
-    image_bytes = await file.read()
+    image_bytes = await read_validated_upload(file)
     x = preprocess(image_bytes)
     if force_corruption and force_corruption != 'none':
         x = apply_corruption_by_name(x, force_corruption, severity=severity)
@@ -26,23 +25,17 @@ async def soft_moe_inference(
                      if force_corruption in ('none', 'clean')
                      else tensor_to_png(x))
 
+    # The complete soft-MoE ONNX graph (gate + identity branch + 3 experts +
+    # weighted sum) runs on every input; the identity branch handles clean images.
     t0 = time.perf_counter()
-    clean_bypass = force_corruption == 'clean'
-    if force_corruption == 'none':
-        logits = run_image_model(classifier(), x)['logits']
-        clean_bypass = int(softmax(logits, axis=1)[0].argmax()) == 0
-
-    if clean_bypass:
-        weights = [1.0, 0.0, 0.0, 0.0]
-        recon_png = image_bytes_to_png(image_bytes)
-    else:
-        out = run_image_model(soft_moe(), x)
-        weights = out['routing_weights'][0].tolist()
-        recon_png = tensor_to_png(restored_output(out))
+    out = run_image_model(soft_moe(), x)
+    weights = out['routing_weights'][0].tolist()
+    recon_png = tensor_to_png(restored_output(out))
     dt_ms = (time.perf_counter() - t0) * 1000
 
     w = {name: float(w) for name, w in zip(BRANCHES, weights)}
     dominant = max(w, key=w.get)
+    clean_bypass = dominant == 'clean'   # identity branch carries most of the weight
 
     return SoftMoEResponse(
         recon_png_b64=base64.b64encode(recon_png).decode(),

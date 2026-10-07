@@ -2,7 +2,7 @@ import time
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
-from ..inference import generator, preprocess, tensor_to_png
+from ..inference import generator, preprocess, tensor_to_png, read_validated_upload
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ async def face_to_sketch(
     if style not in (0, 1, 2):
         raise HTTPException(status_code=400, detail='style must be 0, 1, or 2')
 
-    x = preprocess(await file.read())
+    x = preprocess(await read_validated_upload(file)) * 2.0 - 1.0   # [0,1] -> [-1,1] as in training
     style_ids = np.array([style], dtype=np.int64)
 
     t0 = time.perf_counter()
@@ -33,6 +33,6 @@ async def face_to_sketch(
     out = model.run(photo=x, **{style_input_name: style_ids})
     dt_ms = (time.perf_counter() - t0) * 1000
 
-    png = tensor_to_png(out['sketch'])
+    png = tensor_to_png((out['sketch'] + 1.0) / 2.0)                # tanh [-1,1] -> [0,1]
     return Response(content=png, media_type='image/png',
                     headers={'X-Inference-Ms': f'{dt_ms:.1f}'})

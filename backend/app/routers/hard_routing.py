@@ -1,7 +1,7 @@
 import base64
 import time
 from fastapi import APIRouter, File, Form, UploadFile
-from ..inference import (classifier, specialist, preprocess,
+from ..inference import (read_validated_upload, classifier, specialist, preprocess,
                          run_image_model, restored_output, image_bytes_to_png,
                          tensor_to_png, softmax)
 from ..corruptions import apply_corruption_by_name
@@ -18,7 +18,7 @@ async def hard_routing(
     force_corruption: str = Form('none'),
     severity: str = Form('medium'),
 ):
-    image_bytes = await file.read()
+    image_bytes = await read_validated_upload(file)
     x = preprocess(image_bytes)
 
     applied = None
