@@ -11,7 +11,7 @@ started with **Docker Compose**.
 | 3 | Soft mixture-of-experts (gate + identity + 3 experts), jointly fine-tuned | Soft Mixture-of-Experts Restoration |
 | 4 | Style-conditioned conditional GAN (U-Net + FiLM style embedding, PatchGAN) on FS2K | Face-to-Sketch Generator |
 
-The technical report (IEEE format, LaTeX) is in [`report/`](report/).
+The technical report (IEEE format, LaTeX) is in [`report/`](report/); the compiled PDF is [`report/GenAI_Assignment1_Report.pdf`](report/GenAI_Assignment1_Report.pdf).
 
 ---
 
