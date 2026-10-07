@@ -422,6 +422,7 @@ Table~\ref{tab:t3res} compares all restoration systems on the identical test man
 \label{tab:t3res}
 \centering\footnotesize
 \setlength{\tabcolsep}{2.5pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}llcccccc@{}}
 \toprule
  & & \multicolumn{4}{c}{SSIM$\uparrow$} & \multicolumn{2}{c}{PSNR$\uparrow$}\\
@@ -440,7 +441,7 @@ Clean & -- & 0.406 & 1.000 & 0.998 & 0.997 & 79.4$^\ast$ & 57.3\\
  & high & 0.357 & 0.607 & 0.607 & \textbf{0.656} & 19.94 & \textbf{20.36}\\
 \bottomrule
 \multicolumn{8}{@{}l}{\scriptsize T1: Task 1 (evaluated checkpoint); T2-or./pr.: oracle/predicted hard routing; T3: soft MoE.}
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \begin{figure}[!t]
@@ -655,19 +656,21 @@ The universal and soft-MoE endpoints always run their full model; the identity b
 
 \begin{figure}[!t]
 \centering
-\begin{tikzpicture}[font=\scriptsize, node distance=3mm and 4mm,
-  box/.style={draw, rounded corners=2pt, align=center, minimum height=7mm, fill=#1},
-  box/.default=white, >={Stealth[length=1.6mm]}]
-\node[box=blue!8] (ui) {React + Tailwind UI\\(4 workspaces, webcam,\\download, run log)};
-\node[box=orange!10, right=of ui] (api) {FastAPI\\validation $\rightarrow$ preprocess\\$\rightarrow$ (corrupt) $\rightarrow$ infer};
-\node[box=green!8, right=of api] (ort) {ONNX Runtime\\(CPU)};
-\node[box=gray!8, below=of api, text width=4.9cm] (ep) {\texttt{/health}, \texttt{/universal-restoration}, \texttt{/hard-routing}, \texttt{/soft-moe}, \texttt{/face-to-sketch}};
-\node[box=green!4, below=of ort, text width=2.0cm] (m) {\texttt{models/} (Git LFS): task1, classifier, 3 specialists, task3, task4};
-\draw[->] (ui) -- node[above]{HTTP} (api);
+\begin{tikzpicture}[font=\scriptsize, node distance=4mm and 5mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=7mm, text width=3.3cm, fill=#1},
+  box/.default=white, side/.style={draw, rounded corners=2pt, align=left, text width=3.4cm, fill=gray!6},
+  >={Stealth[length=1.6mm]}]
+\node[box=blue!8] (ui) {React + Tailwind UI (4 workspaces, webcam, download, run log)};
+\node[box=orange!10, below=of ui] (api) {FastAPI: validate upload $\rightarrow$ preprocess $\rightarrow$ (optional corruption) $\rightarrow$ inference};
+\node[box=green!8, below=of api] (ort) {ONNX Runtime (CPU)};
+\node[side, right=of ui] (fe) {Frontend container\\Vite dev server, port 5173};
+\node[side, right=of api] (ep) {\texttt{/health}\\\texttt{/universal-restoration}\\\texttt{/hard-routing}\\\texttt{/soft-moe}\\\texttt{/face-to-sketch}};
+\node[side, right=of ort] (m) {\texttt{models/} (Git LFS): task1, classifier, 3 specialists, task3, task4};
+\draw[->] (ui) -- node[left, font=\tiny]{HTTP / JSON} (api);
 \draw[->] (api) -- (ort);
-\draw[->] (api) -- (ep);
 \draw[->] (m) -- (ort);
-\node[draw, dashed, rounded corners, inner sep=2.5mm, fit=(ui)(api)(ort)(ep)(m), label={[font=\scriptsize]above:Docker Compose (frontend container :5173, backend container :8000)}] {};
+\draw[dotted] (fe) -- (ui); \draw[dotted] (ep) -- (api);
+\node[draw, dashed, rounded corners, inner sep=2mm, fit=(ui)(api)(ort)(fe)(ep)(m), label={[font=\scriptsize]above:Docker Compose (\texttt{docker compose up --build})}] {};
 \end{tikzpicture}
 \caption{Application architecture: browser front end, FastAPI back end and ONNX Runtime models, started with one Docker Compose command.}
 \label{fig:apparch}
