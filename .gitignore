@@ -9,3 +9,12 @@ build/
 *.onnx.data
 .DS_Store
 .vscode/
+# local resources / build outputs
+Report_Resources/
+.probe/
+.ipynb_checkpoints/
+mlruns/
+report/*.aux
+report/*.log
+report/*.out
+report/*.synctex.gz

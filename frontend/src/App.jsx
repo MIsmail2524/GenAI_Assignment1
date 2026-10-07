@@ -40,14 +40,19 @@ export default function App() {
   }
 
   return (
-    <div className="container">
-      <h1>Multi-Corruption Restoration Suite</h1>
-      <p className="subtitle">Tasks 1–4 · ONNX inference via FastAPI</p>
+    <div className="container mx-auto max-w-6xl px-4 py-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-gray-200 pb-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Multi-Corruption Restoration Suite</h1>
+          <p className="subtitle text-sm text-gray-500">Tasks 1–4 · ONNX inference via FastAPI</p>
+        </div>
+        <span className="rounded-full bg-gray-900 px-3 py-1 font-mono text-xs text-white">ONNX Runtime · CPU</span>
+      </header>
 
-      <nav className="tabs">
+      <nav className="tabs flex flex-wrap gap-2">
         {TABS.map(([key, label]) => (
           <button key={key}
-            className={`tab ${tab === key ? 'active' : ''}`}
+            className={`tab rounded-lg px-4 py-2 text-sm transition ${tab === key ? 'active shadow' : 'hover:border-gray-500'}`}
             onClick={() => setTab(key)}>
             {label}
           </button>
